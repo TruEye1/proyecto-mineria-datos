@@ -242,3 +242,4 @@ def exportar_arbol_a_reglas_texto(
     Ideal para auditoría humana y para incluir en el reporte HTML (RF5).
     """
     return export_text(modelo, feature_names=feature_names)
+
