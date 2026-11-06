@@ -1,0 +1,25 @@
+# Entornos virtuales
+venv/
+.venv/
+env/
+ENV/
+
+# Configuración del editor Visual Studio Code
+.vscode/
+
+# Caché de Python y archivos compilados
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Archivos temporales y de sistema operativo
+.DS_Store
+Thumbs.db
+*.log
+.env
+
+# Modelos exportados o caché de pruebas locales
+*.pkl
+*.joblib
+.pytest_cache/
