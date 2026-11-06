@@ -48,10 +48,12 @@ def mostrar_diagnostico_archivo(metadata: dict, df: pd.DataFrame) -> None:
 def mostrar_resumen_limpieza(resumen: dict, df_limpio: pd.DataFrame) -> None:
     st.subheader("✨ Resultados de la Limpieza Automática (RF2)")
     
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Duplicados Eliminados", f"{resumen['duplicados_eliminados']}")
     c2.metric("Filas Finales", f"{resumen['filas_finales']}")
     c3.metric("Columnas Renombradas", "Sí" if resumen['columnas_renombradas'] else "No")
+    total_atipicos = sum(resumen.get("atipicos_tratados", {}).values())
+    c4.metric("Atípicos Tratados (IQR)", f"{total_atipicos}")
 
     if resumen["nulos_imputados"]:
         st.info(f"**Imputación de Nulos realizada en {len(resumen['nulos_imputados'])} columnas:**")
@@ -62,6 +64,11 @@ def mostrar_resumen_limpieza(resumen: dict, df_limpio: pd.DataFrame) -> None:
         
     if resumen["tipos_corregidos"]:
         st.info(f"**Tipos de datos corregidos automáticamente en:** {', '.join(resumen['tipos_corregidos'])}")
+
+    if resumen.get("atipicos_tratados"):
+        st.warning(f"**Valores atípicos neutralizados (Winsorización IQR) en {len(resumen['atipicos_tratados'])} columnas:**")
+        for col, cant in resumen["atipicos_tratados"].items():
+            st.write(f"- `{col}`: {cant} valores atípicos ajustados a los límites intercuartílicos.")
 
     st.markdown("###  Vista Previa de Datos Limpios")
     st.dataframe(df_limpio.head(15), use_container_width=True)
@@ -109,7 +116,8 @@ def main() -> None:
             1. Estandarizará los nombres de las columnas (minúsculas, sin espacios).
             2. Eliminará registros duplicados.
             3. Corregirá tipos de datos mal formateados.
-            4. Imputará valores nulos de forma inteligente.
+            4. Imputará valores nulos de forma inteligente (mediana/moda).
+            5. Detectará y tratará valores atípicos mediante rango intercuartílico (IQR).
             """
         )
 
