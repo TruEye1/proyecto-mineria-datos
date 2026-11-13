@@ -3,13 +3,6 @@ Módulo: 2_Arbol_de_Decision.py
 Capa: Presentación (web/pages/)
 Descripción: Interfaz interactiva para el entrenamiento, ajuste de hiperparámetros,
 evaluación y gestión de modelos de Árboles de Decisión (RF3).
-
-Cumple estrictamente con los requerimientos del enunciado:
-- Selección de variable objetivo y predictoras.
-- Configuración de hiperparámetros (profundidad, criterio, división train/test).
-- Visualización gráfica del árbol y reglas textuales.
-- Métricas: Exactitud, Matriz de Confusión, Precisión, Recall y F1-Score.
-- Gestión de modelos: Guardar en session_state, listar, comparar y eliminar.
 """
 
 import sys
@@ -19,9 +12,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.express as px
-import plotly.figure_factory as ff
 
-# Asegurar que la raíz del proyecto esté en el sys.path para importar desde analisis/
 RUTA_RAIZ = Path(__file__).resolve().parent.parent.parent
 if str(RUTA_RAIZ) not in sys.path:
     sys.path.insert(0, str(RUTA_RAIZ))
@@ -45,23 +36,26 @@ def inicializar_estado():
 
 
 def render_matriz_confusion(matriz: np.ndarray, class_names: list):
-    """Renderiza la matriz de confusión interactiva con Plotly."""
-    z = matriz.tolist()
-    x = [f"Pred: {c}" for c in class_names]
-    y = [f"Real: {c}" for c in class_names]
+    """Renderiza la matriz de confusión interactiva de forma segura y robusta."""
+    
+    # CORRECCIÓN FRONTEND: Ajustar nombres a las dimensiones reales de la matriz
+    n_clases_reales = matriz.shape[0]
+    nombres_ejes = class_names[:n_clases_reales] if len(class_names) >= n_clases_reales else [f"C{i}" for i in range(n_clases_reales)]
+    
+    x_labels = [f"Pred: {c}" for c in nombres_ejes]
+    y_labels = [f"Real: {c}" for c in nombres_ejes]
 
-    # Invertir eje Y para que coincida con la orientación matemática habitual
-    fig = ff.create_annotated_heatmap(
-        z=z,
-        x=x,
-        y=y,
-        colorscale="Blues",
-        showscale=True
+    fig = px.imshow(
+        matriz,
+        labels=dict(x="Clase Predicha", y="Clase Real", color="Frecuencia"),
+        x=x_labels,
+        y=y_labels,
+        text_auto=True,
+        color_continuous_scale="Blues",
+        aspect="auto"
     )
     fig.update_layout(
-        title_text="<b>Matriz de Confusión (Valores Absolutos)</b>",
-        xaxis_title="Clase Predicha por el Modelo",
-        yaxis_title="Clase Real de la Muestra",
+        title_text="<b>Matriz de Confusión</b>",
         margin=dict(t=50, l=80, r=50, b=50),
         height=400
     )
@@ -69,7 +63,6 @@ def render_matriz_confusion(matriz: np.ndarray, class_names: list):
 
 
 def render_importancia_variables(df_importancia: pd.DataFrame):
-    """Renderiza el gráfico de barras horizontales con la importancia de variables."""
     df_filtrado = df_importancia[df_importancia["importancia"] > 0].copy()
     if df_filtrado.empty:
         df_filtrado = df_importancia.head(5).copy()
@@ -104,7 +97,6 @@ def main():
         """
     )
 
-    # 1. Validación de prerrequisito (Carga y Limpieza)
     if st.session_state["df_limpio"] is None:
         st.warning("⚠️ **Prerrequisito no cumplido:** Debes cargar y limpiar un dataset primero.")
         st.info("👉 Ve al módulo **1. Carga y Limpieza** en el menú lateral para subir tu archivo.")
@@ -118,14 +110,12 @@ def main():
 
     st.divider()
 
-    # 2. Configuración de Variables (Target y Features)
     st.subheader("1. Selección de Variables")
     col_target, col_features = st.columns([1, 2])
 
     columnas_disponibles = list(df.columns)
 
     with col_target:
-        # Sugerir la última columna como objetivo por defecto habitual en data mining
         indice_target_default = len(columnas_disponibles) - 1
         target_col = st.selectbox(
             "🎯 Variable Objetivo (Target / Clase):",
@@ -153,7 +143,6 @@ def main():
 
     st.divider()
 
-    # 3. Configuración de Hiperparámetros
     st.subheader("2. Calibración de Hiperparámetros")
     st.markdown("Ajusta los parámetros para controlar la complejidad y evitar el sobreajuste (*overfitting*):")
 
@@ -197,13 +186,14 @@ def main():
 
     st.divider()
 
-    # 4. Botón de Entrenamiento
     btn_entrenar = st.button("🚀 Entrenar Árbol de Decisión", type="primary", use_container_width=True)
 
     if btn_entrenar:
+        # CORRECCIÓN FRONTEND: Limpiar la memoria visual antes de procesar el nuevo árbol.
+        st.session_state["arbol_actual"] = None
+        
         with st.spinner("Preparando datos y ajustando árbol de decisión..."):
             try:
-                # Capa de Procesamiento
                 datos_preparados = preparar_datos(
                     df=df,
                     target_col=target_col,
@@ -229,7 +219,6 @@ def main():
                     feature_names=datos_preparados["feature_names"]
                 )
 
-                # Guardar resultado del entrenamiento activo en el session_state
                 st.session_state["arbol_actual"] = {
                     "modelo": modelo,
                     "datos_preparados": datos_preparados,
@@ -247,7 +236,6 @@ def main():
             except Exception as e:
                 st.error(f"❌ Error durante el entrenamiento: {str(e)}")
 
-    # 5. Visualización de Resultados del Modelo Activo
     if st.session_state["arbol_actual"] is not None:
         resultado = st.session_state["arbol_actual"]
         m = resultado["metricas"]
@@ -265,7 +253,6 @@ def main():
 
         st.divider()
 
-        # Pestañas de análisis detallado
         tab_arbol, tab_matriz, tab_importancia, tab_guardar = st.tabs([
             "🌳 Visualización del Árbol",
             "📊 Matriz de Confusión y Diagnóstico",
@@ -348,14 +335,12 @@ def main():
                     st.session_state["modelos_arbol"].append(nuevo_registro)
                     st.success(f"✅ ¡Modelo '{nombre_modelo}' guardado correctamente!")
 
-    # 6. Tabla Comparativa de Modelos Guardados (Requisito PDF: "guardar, listar, comparar y eliminar")
     st.divider()
     st.subheader("📋 Modelos Guardados en la Sesión")
 
     if st.session_state["modelos_arbol"]:
         df_modelos = pd.DataFrame(st.session_state["modelos_arbol"])
         
-        # Formatear porcentajes para visualización
         df_mostrar = df_modelos.copy()
         for col_met in ["exactitud", "precision", "recall", "f1_score"]:
             df_mostrar[col_met] = df_mostrar[col_met].apply(lambda x: f"{x * 100:.2f}%")
@@ -373,4 +358,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
