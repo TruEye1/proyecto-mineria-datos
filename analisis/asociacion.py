@@ -14,6 +14,7 @@ from mlxtend.frequent_patterns import apriori, fpgrowth, association_rules
 def _formatear_intervalo(valor: Any) -> str:
     """Convierte intervalos de pandas en rangos legibles para las reglas."""
     if isinstance(valor, pd.Interval):
+        # Redondea rangos amplios a enteros y conserva decimales en rangos pequeños.
         izq = int(round(valor.left)) if abs(valor.left) >= 10 else round(valor.left, 2)
         der = int(round(valor.right)) if abs(valor.right) >= 10 else round(valor.right, 2)
         return f"{izq} a {der}"
@@ -37,9 +38,11 @@ def preparar_transacciones(
     if not cols_validas:
         raise ValueError("Ninguna de las columnas seleccionadas existe en el dataset activo.")
 
+    # Procesa solo las columnas solicitadas y conserva su índice original.
     sub_df = df[cols_validas].copy()
     columnas_procesadas: Dict[str, pd.Series] = {}
 
+    # Convierte cada columna en categorías; las numéricas se omiten o se agrupan en rangos.
     for col in cols_validas:
         if pd.api.types.is_numeric_dtype(sub_df[col]):
             if not incluir_numericas:
@@ -47,6 +50,7 @@ def preparar_transacciones(
 
             serie_num = sub_df[col].dropna()
             if serie_num.nunique() > n_rangos:
+                # Prefiere cuantiles y recurre a intervalos equidistantes si no se pueden calcular.
                 try:
                     cortes = pd.qcut(sub_df[col], q=n_rangos, duplicates="drop")
                 except ValueError:
@@ -67,6 +71,7 @@ def preparar_transacciones(
         )
 
     df_proc = pd.DataFrame(columnas_procesadas, index=sub_df.index)
+    # Expande las categorías a indicadores booleanos para los algoritmos de itemsets.
     df_transacciones = pd.get_dummies(df_proc, prefix_sep="=", dtype=bool)
     return df_transacciones
 
@@ -86,6 +91,7 @@ def generar_reglas_asociacion(
     if df_transacciones.empty or df_transacciones.shape[1] == 0:
         raise ValueError("La matriz de transacciones está vacía.")
 
+    # Ejecuta el algoritmo solicitado sobre la matriz transaccional.
     alg = algoritmo.lower().strip()
     if alg == "fpgrowth":
         itemsets = fpgrowth(
@@ -102,6 +108,7 @@ def generar_reglas_asociacion(
             max_len=max_len
         )
 
+    # Devuelve resultados con el mismo formato aunque no haya combinaciones frecuentes.
     if itemsets.empty:
         return {
             "itemsets": pd.DataFrame(columns=["items", "longitud", "support"]),
@@ -113,6 +120,7 @@ def generar_reglas_asociacion(
             "mejor_lift": 0.0
         }
 
+    # Ordena itemsets y solo calcula reglas cuando existe alguna combinación de varios ítems.
     itemsets_ordenados = itemsets.sort_values(by="support", ascending=False).reset_index(drop=True)
 
     # Solo se pueden generar reglas si existe al menos un itemset con 2 o más elementos
@@ -121,6 +129,7 @@ def generar_reglas_asociacion(
 
     if longitud_maxima >= 2:
         try:
+            # Detecta si la versión instalada de mlxtend requiere el parámetro num_itemsets.
             params_ar = inspect.signature(association_rules).parameters
             kwargs_ar: Dict[str, Any] = {
                 "metric": metrica,
@@ -133,11 +142,12 @@ def generar_reglas_asociacion(
         except ValueError:
             reglas = pd.DataFrame()
 
+    # Prepara etiquetas legibles y resume las métricas de las reglas generadas.
     if not reglas.empty:
         reglas = reglas.copy()
         reglas["antecedentes"] = reglas["antecedents"].apply(lambda s: ", ".join(sorted(list(s))))
         reglas["consecuentes"] = reglas["consequents"].apply(lambda s: ", ".join(sorted(list(s))))
-        reglas["regla"] = reglas["antecedentes"] + "  ➔  " + reglas["consecuentes"]
+        reglas["regla"] = reglas["antecedentes"] + "  ->  " + reglas["consecuentes"]
         reglas = reglas.sort_values(
             by=["lift", "confidence", "support"],
             ascending=False
@@ -146,6 +156,7 @@ def generar_reglas_asociacion(
     else:
         mejor_lift = 0.0
 
+    # Simplifica la tabla de itemsets para su presentación en la interfaz.
     itemsets_mostrar = itemsets_ordenados.copy()
     itemsets_mostrar["items"] = itemsets_mostrar["itemsets"].apply(lambda s: ", ".join(sorted(list(s))))
     itemsets_mostrar["longitud"] = itemsets_mostrar["itemsets"].apply(len)

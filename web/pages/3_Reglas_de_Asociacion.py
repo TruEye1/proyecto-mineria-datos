@@ -25,6 +25,7 @@ from analisis.asociacion import (
 
 
 def inicializar_estado():
+    """Prepara los datos activos, el análisis actual y el historial de la sesión."""
     if "df_limpio" not in st.session_state:
         st.session_state["df_limpio"] = None
     if "reglas_actual" not in st.session_state:
@@ -35,6 +36,7 @@ def inicializar_estado():
 
 def render_grafico_dispersion(reglas_df: pd.DataFrame):
     """Gráfico Soporte vs. Confianza coloreado por Lift."""
+    # El tamaño del marcador usa lift, con un mínimo para mantenerlo visible.
     df_plot = reglas_df.copy()
     df_plot["lift_size"] = df_plot["lift"].clip(lower=0.1)
 
@@ -65,6 +67,7 @@ def render_grafico_dispersion(reglas_df: pd.DataFrame):
 
 def render_top_itemsets(df_itemsets: pd.DataFrame, top_n: int = 10):
     """Gráfico de barras horizontales con los itemsets más frecuentes."""
+    # Ordena de menor a mayor para que las combinaciones más frecuentes destaquen.
     df_top = df_itemsets.head(top_n).sort_values(by="support", ascending=True)
     fig = px.bar(
         df_top,
@@ -81,6 +84,7 @@ def render_top_itemsets(df_itemsets: pd.DataFrame, top_n: int = 10):
 
 
 def main():
+    # Configura la página y restaura el estado guardado durante esta sesión.
     st.set_page_config(
         page_title="Reglas de Asociación | Minería de Datos",
         page_icon="🔗",
@@ -96,7 +100,7 @@ def main():
         """
     )
 
-    # 1. Validación de prerrequisito
+    # 1. Requiere un dataset limpio antes de configurar o ejecutar el análisis.
     if st.session_state["df_limpio"] is None:
         st.warning(" **Prerrequisito no cumplido:** Debes cargar y limpiar un dataset primero.")
         st.info(" Ve al módulo **1. Carga y Limpieza** en el menú lateral para subir y limpiar tu archivo.")
@@ -109,7 +113,7 @@ def main():
 
     st.divider()
 
-    # 2. Selección de variables
+    # 2. Elige columnas para las transacciones y define si discretizar variables numéricas.
     st.subheader("1. Configuración de Transacciones")
     columnas_disponibles = list(df.columns)
     default_cols = [c for c in columnas_disponibles if "id" not in c.lower()] or columnas_disponibles
@@ -139,7 +143,7 @@ def main():
 
     st.divider()
 
-    # 3. Parámetros del algoritmo
+    # 3. Configura algoritmo, soporte y métrica/umbral para filtrar reglas.
     st.subheader("2. Parámetros del Algoritmo")
     c1, c2, c3, c4 = st.columns(4)
 
@@ -182,8 +186,8 @@ def main():
 
     st.divider()
 
-    # 4. Ejecución
-    if st.button("⚡ Generar Reglas de Asociación", type="primary", use_container_width=True):
+    # 4. Construye la matriz transaccional, calcula itemsets y guarda el resultado actual.
+    if st.button("Generar Reglas de Asociación", type="primary", use_container_width=True):
         st.session_state["reglas_actual"] = None
 
         with st.spinner("Construyendo matriz transaccional y extrayendo reglas..."):
@@ -214,12 +218,12 @@ def main():
                     },
                     "timestamp": datetime.now().strftime("%H:%M:%S")
                 }
-                st.success("🎉 ¡Análisis de asociación completado con éxito!")
+                st.success("¡Análisis de asociación completado con éxito!")
 
             except Exception as e:
                 st.error(f" Error durante el análisis: {str(e)}")
 
-    # 5. Resultados
+    # 5. Presenta resumen, tablas y gráficos cuando existe un análisis reciente.
     if st.session_state["reglas_actual"] is not None:
         activo = st.session_state["reglas_actual"]
         res = activo["resultado"]
@@ -242,6 +246,7 @@ def main():
             " Guardar Ejecución"
         ])
 
+        # Cada pestaña permite inspeccionar reglas, itemsets, relaciones o guardar la ejecución.
         with tab_reglas:
             if reglas_df.empty:
                 st.info("No se encontraron reglas con estos parámetros. Intenta bajar el soporte o el umbral mínimo.")
@@ -314,14 +319,14 @@ def main():
                         "mejor_lift": round(res["mejor_lift"], 2),
                         "hora": activo["timestamp"]
                     })
-                    st.success(f"✅ Análisis '{nombre_run}' guardado en la sesión.")
+                    st.success(f"Análisis '{nombre_run}' guardado en la sesión.")
 
-    # 6. Historial guardado
+    # 6. Muestra los análisis conservados en la sesión y permite limpiar el historial.
     st.divider()
-    st.subheader("📋 Análisis Guardados en la Sesión")
+    st.subheader("Análisis Guardados en la Sesión")
     if st.session_state["historial_asociacion"]:
         st.dataframe(pd.DataFrame(st.session_state["historial_asociacion"]), use_container_width=True)
-        if st.button("🗑️ Borrar Historial de Asociación"):
+        if st.button("Borrar Historial de Asociación"):
             st.session_state["historial_asociacion"] = []
             st.rerun()
     else:
