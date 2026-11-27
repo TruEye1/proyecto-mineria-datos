@@ -1,8 +1,9 @@
 """
-Script de verificación técnica para el pipeline completo de RF1, RF2, RF3 y RF4.
+Script de verificación técnica para el pipeline completo de RF1, RF2, RF3, RF4, RF5 y RF6.
 Comprueba que los datos de prueba se cargan, se limpian (incluyendo atípicos),
 que el árbol de decisión se entrena, evalúa y visualiza sin excepciones,
-y que las reglas de asociación (Apriori y FP-Growth) se generan correctamente.
+que las reglas de asociación (Apriori y FP-Growth) se generan correctamente,
+y que las estadísticas del dashboard e informe HTML ejecutivo se construyen sin errores.
 """
 
 import sys
@@ -23,6 +24,11 @@ from analisis.arbol_decision import (
 from analisis.asociacion import (
     preparar_transacciones,
     generar_reglas_asociacion
+)
+from analisis.generador_informe import (
+    calcular_estadisticas_dashboard,
+    generar_conclusiones_automaticas,
+    generar_html_informe
 )
 
 def run_tests():
@@ -117,6 +123,53 @@ def run_tests():
     print(
         f"RF4 superado: Apriori ({res_apriori['total_itemsets']} itemsets, {res_apriori['total_reglas']} reglas) "
         f"y FP-Growth ({res_fpgrowth['total_itemsets']} itemsets, {res_fpgrowth['total_reglas']} reglas)."
+    )
+
+    # 5. Test RF5 y RF6: Estadísticas de Dashboard e Informe HTML
+    stats_dash = calcular_estadisticas_dashboard(df_limpio)
+    assert stats_dash["filas"] == len(df_limpio)
+    assert not stats_dash["matriz_correlacion"].empty, "La matriz de correlación no debe estar vacía"
+
+    modelos_prueba = [{
+        "nombre": "Árbol Test",
+        "target": target,
+        "criterio": "gini",
+        "max_depth": 3,
+        "exactitud": metricas["exactitud"],
+        "precision": metricas["precision"],
+        "recall": metricas["recall"],
+        "f1_score": metricas["f1_score"],
+    }]
+    conclusiones = generar_conclusiones_automaticas(
+        df=df_limpio,
+        resumen_limpieza=resumen,
+        modelos_arbol=modelos_prueba,
+        historial_asociacion=[],
+        reglas_activas=res_apriori["reglas"],
+    )
+    assert len(conclusiones) >= 4, "Debe generar al menos 4 conclusiones automáticas"
+
+    html_informe = generar_html_informe(
+        metadata_archivo=resultado["metadata"],
+        df_limpio=df_limpio,
+        resumen_limpieza=resumen,
+        modelos_arbol=modelos_prueba,
+        historial_asociacion=[],
+        reglas_activas=res_apriori["reglas"],
+    )
+    for marcador in [
+        "<!DOCTYPE html>",
+        "1. Resumen de Datos",
+        "2. Limpieza Automática (RF2)",
+        "3. Modelos de Árbol de Decisión (RF3)",
+        "4. Reglas de Asociación (RF4)",
+        "5. Conclusiones",
+    ]:
+        assert marcador in html_informe, f"Falta sección esperada en el informe HTML: {marcador}"
+
+    print(
+        f"RF5/RF6 superado: Correlación {stats_dash['matriz_correlacion'].shape}, "
+        f"{len(conclusiones)} conclusiones y HTML ({len(html_informe)} bytes)."
     )
 
     print("\n¡TODOS LOS TESTS UNITARIOS PASARON SATISFACTORIAMENTE!")
