@@ -8,6 +8,7 @@ evaluación y gestión de modelos de Árboles de Decisión (RF3).
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import Any, Dict, List
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -35,6 +36,11 @@ def inicializar_estado():
         st.session_state["modelos_arbol"] = []
     if "arbol_actual" not in st.session_state:
         st.session_state["arbol_actual"] = None
+
+
+def eliminar_modelo_por_id(modelos: List[Dict[str, Any]], id_modelo: int) -> List[Dict[str, Any]]:
+    """Retorna la lista de modelos excluyendo el registro con el ID indicado."""
+    return [modelo for modelo in modelos if modelo.get("id") != id_modelo]
 
 
 def render_matriz_confusion(matriz: np.ndarray, class_names: list):
@@ -84,6 +90,46 @@ def render_importancia_variables(df_importancia: pd.DataFrame):
         color_continuous_scale="Viridis"
     )
     fig.update_layout(height=380, margin=dict(t=40, l=100, r=40, b=40))
+    return fig
+
+
+def render_comparacion_modelos(df_modelos: pd.DataFrame):
+    """Genera un gráfico de barras agrupadas comparando métricas entre modelos guardados."""
+    etiquetas_metricas = {
+        "exactitud": "Exactitud",
+        "precision": "Precisión",
+        "recall": "Recall",
+        "f1_score": "F1-Score"
+    }
+    df_melt = df_modelos.melt(
+        id_vars=["nombre"],
+        value_vars=list(etiquetas_metricas.keys()),
+        var_name="metrica",
+        value_name="valor"
+    )
+    df_melt["metrica"] = df_melt["metrica"].map(etiquetas_metricas)
+    df_melt["porcentaje"] = (df_melt["valor"] * 100).round(2)
+
+    fig = px.bar(
+        df_melt,
+        x="nombre",
+        y="porcentaje",
+        color="metrica",
+        barmode="group",
+        text_auto=".1f",
+        labels={
+            "nombre": "Modelo Guardado",
+            "porcentaje": "Rendimiento (%)",
+            "metrica": "Métrica"
+        },
+        title="<b>Comparativa de Rendimiento entre Modelos (%)</b>"
+    )
+    fig.update_layout(
+        height=400,
+        yaxis_range=[0, 105],
+        margin=dict(t=50, l=50, r=40, b=60),
+        legend_title_text="Métrica"
+    )
     return fig
 
 
@@ -335,8 +381,12 @@ def main():
                 st.write("")
                 st.write("")
                 if st.button("Guardar en Memoria de Sesión", type="primary"):
+                    nuevo_id = max(
+                        (mod.get("id", 0) for mod in st.session_state["modelos_arbol"]),
+                        default=0
+                    ) + 1
                     nuevo_registro = {
-                        "id": len(st.session_state["modelos_arbol"]) + 1,
+                        "id": nuevo_id,
                         "nombre": nombre_modelo,
                         "target": dp["target_col"],
                         "criterio": hp["criterio"],
@@ -365,8 +415,40 @@ def main():
 
         st.dataframe(df_mostrar, use_container_width=True)
 
-        col_del1, col_del2 = st.columns([1, 4])
-        with col_del1:
+        if len(df_modelos) >= 2:
+            st.markdown("#### Comparación Visual de Modelos")
+            nombres_disponibles = df_modelos["nombre"].tolist()
+            modelos_comp = st.multiselect(
+                "Modelos a comparar:",
+                options=nombres_disponibles,
+                default=nombres_disponibles
+            )
+            if len(modelos_comp) >= 2:
+                df_comp = df_modelos[df_modelos["nombre"].isin(modelos_comp)]
+                fig_comp = render_comparacion_modelos(df_comp)
+                st.plotly_chart(fig_comp, use_container_width=True)
+            else:
+                st.info("Selecciona al menos 2 modelos para visualizar la comparación.")
+
+        opciones_modelos = {
+            mod["id"]: f"#{mod['id']} — {mod['nombre']}"
+            for mod in st.session_state["modelos_arbol"]
+        }
+        id_modelo_sel = st.selectbox(
+            "Seleccionar modelo guardado:",
+            options=list(opciones_modelos.keys()),
+            format_func=lambda idx: opciones_modelos[idx]
+        )
+
+        col_del_ind, col_del_all, _ = st.columns([1, 1, 2])
+        with col_del_ind:
+            if st.button("Eliminar modelo seleccionado", use_container_width=True):
+                st.session_state["modelos_arbol"] = eliminar_modelo_por_id(
+                    st.session_state["modelos_arbol"],
+                    id_modelo_sel
+                )
+                st.rerun()
+        with col_del_all:
             if st.button("Borrar Historial de Modelos"):
                 st.session_state["modelos_arbol"] = []
                 st.rerun()

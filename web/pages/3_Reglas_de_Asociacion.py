@@ -8,6 +8,7 @@ y reglas de asociación mediante Apriori y FP-Growth (RF4).
 import sys
 from pathlib import Path
 from datetime import datetime
+from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
 import plotly.express as px
@@ -30,8 +31,17 @@ def inicializar_estado():
         st.session_state["df_limpio"] = None
     if "reglas_actual" not in st.session_state:
         st.session_state["reglas_actual"] = None
+    if "reglas_asociacion" not in st.session_state:
+        st.session_state["reglas_asociacion"] = None
+    if "config_asociacion" not in st.session_state:
+        st.session_state["config_asociacion"] = None
     if "historial_asociacion" not in st.session_state:
         st.session_state["historial_asociacion"] = []
+
+
+def eliminar_analisis_por_id(historial: List[Dict[str, Any]], id_analisis: int) -> List[Dict[str, Any]]:
+    """Retorna el historial excluyendo el análisis con el ID especificado."""
+    return [item for item in historial if item.get("id") != id_analisis]
 
 
 def render_grafico_dispersion(reglas_df: pd.DataFrame):
@@ -189,6 +199,8 @@ def main():
     # 4. Construye la matriz transaccional, calcula itemsets y guarda el resultado actual.
     if st.button("Generar Reglas de Asociación", type="primary", use_container_width=True):
         st.session_state["reglas_actual"] = None
+        st.session_state["reglas_asociacion"] = None
+        st.session_state["config_asociacion"] = None
 
         with st.spinner("Construyendo matriz transaccional y extrayendo reglas..."):
             try:
@@ -206,18 +218,21 @@ def main():
                     min_threshold=min_threshold
                 )
 
+                params = {
+                    "algoritmo": algoritmo,
+                    "min_support": min_support,
+                    "metrica": metrica,
+                    "min_threshold": min_threshold,
+                    "incluir_numericas": incluir_numericas
+                }
                 st.session_state["reglas_actual"] = {
                     "resultado": resultado,
                     "matriz_tx": matriz_tx,
-                    "parametros": {
-                        "algoritmo": algoritmo,
-                        "min_support": min_support,
-                        "metrica": metrica,
-                        "min_threshold": min_threshold,
-                        "incluir_numericas": incluir_numericas
-                    },
+                    "parametros": params,
                     "timestamp": datetime.now().strftime("%H:%M:%S")
                 }
+                st.session_state["reglas_asociacion"] = resultado["reglas"]
+                st.session_state["config_asociacion"] = params
                 st.success("¡Análisis de asociación completado con éxito!")
 
             except Exception as e:
@@ -251,30 +266,51 @@ def main():
             if reglas_df.empty:
                 st.info("No se encontraron reglas con estos parámetros. Intenta bajar el soporte o el umbral mínimo.")
             else:
-                filtro_texto = st.text_input(
-                    " Filtrar reglas por palabra clave (ej. Electronica, Iquique, Si):",
-                    value=""
-                ).strip()
+                col_filtro, col_orden, col_dir = st.columns([2, 1, 1])
+                with col_filtro:
+                    filtro_texto = st.text_input(
+                        "Filtrar reglas por palabra clave (ej. Electronica, Iquique, Si):",
+                        value=""
+                    ).strip()
+                with col_orden:
+                    orden_col = st.selectbox(
+                        "Ordenar por:",
+                        options=["lift", "confidence", "support"],
+                        format_func=lambda x: {"lift": "Lift", "confidence": "Confianza", "support": "Soporte"}[x]
+                    )
+                with col_dir:
+                    orden_dir = st.selectbox(
+                        "Dirección:",
+                        options=["Descendente", "Ascendente"]
+                    )
 
                 df_ver = reglas_df.copy()
                 if filtro_texto:
                     df_ver = df_ver[df_ver["regla"].str.contains(filtro_texto, case=False, na=False)]
 
-                cols_tabla = ["regla", "support", "confidence", "lift"]
-                df_mostrar = df_ver[cols_tabla].rename(columns={
-                    "regla": "Regla (Antecedente ➔ Consecuente)",
-                    "support": "Soporte",
-                    "confidence": "Confianza",
-                    "lift": "Lift"
-                })
-                st.dataframe(
-                    df_mostrar.style.format({
-                        "Soporte": "{:.2%}",
-                        "Confianza": "{:.2%}",
-                        "Lift": "{:.2f}"
-                    }),
-                    use_container_width=True
-                )
+                if df_ver.empty:
+                    st.info("Ninguna regla coincide con el filtro ingresado.")
+                else:
+                    df_ver = df_ver.sort_values(
+                        by=orden_col,
+                        ascending=(orden_dir == "Ascendente")
+                    ).reset_index(drop=True)
+
+                    cols_tabla = ["regla", "support", "confidence", "lift"]
+                    df_mostrar = df_ver[cols_tabla].rename(columns={
+                        "regla": "Regla (Antecedente ➔ Consecuente)",
+                        "support": "Soporte",
+                        "confidence": "Confianza",
+                        "lift": "Lift"
+                    })
+                    st.dataframe(
+                        df_mostrar.style.format({
+                            "Soporte": "{:.2%}",
+                            "Confianza": "{:.2%}",
+                            "Lift": "{:.2f}"
+                        }),
+                        use_container_width=True
+                    )
 
         with tab_itemsets:
             if res["itemsets"].empty:
@@ -307,8 +343,17 @@ def main():
                 st.write("")
                 st.write("")
                 if st.button("Guardar en Sesión", type="primary"):
+                    nuevo_id = max(
+                        (item.get("id", 0) for item in st.session_state["historial_asociacion"]),
+                        default=0
+                    ) + 1
+                    snapshot_res = {
+                        **res,
+                        "itemsets": res["itemsets"].copy(),
+                        "reglas": res["reglas"].copy()
+                    }
                     st.session_state["historial_asociacion"].append({
-                        "id": len(st.session_state["historial_asociacion"]) + 1,
+                        "id": nuevo_id,
                         "nombre": nombre_run,
                         "algoritmo": params["algoritmo"].upper(),
                         "min_support": params["min_support"],
@@ -317,18 +362,64 @@ def main():
                         "itemsets": res["total_itemsets"],
                         "reglas": res["total_reglas"],
                         "mejor_lift": round(res["mejor_lift"], 2),
-                        "hora": activo["timestamp"]
+                        "hora": activo["timestamp"],
+                        "parametros": params.copy(),
+                        "resultado_completo": snapshot_res
                     })
                     st.success(f"Análisis '{nombre_run}' guardado en la sesión.")
 
-    # 6. Muestra los análisis conservados en la sesión y permite limpiar el historial.
+    # 6. Muestra los análisis conservados en la sesión y permite cargar o eliminar registros.
     st.divider()
     st.subheader("Análisis Guardados en la Sesión")
     if st.session_state["historial_asociacion"]:
-        st.dataframe(pd.DataFrame(st.session_state["historial_asociacion"]), use_container_width=True)
-        if st.button("Borrar Historial de Asociación"):
-            st.session_state["historial_asociacion"] = []
-            st.rerun()
+        cols_resumen = [
+            "id", "nombre", "algoritmo", "min_support",
+            "metrica", "umbral", "itemsets", "reglas", "mejor_lift", "hora"
+        ]
+        df_historial = pd.DataFrame(st.session_state["historial_asociacion"])
+        cols_visibles = [c for c in cols_resumen if c in df_historial.columns]
+        st.dataframe(df_historial[cols_visibles], use_container_width=True, hide_index=True)
+
+        opciones_hist = {
+            item["id"]: f"#{item['id']} — {item['nombre']}"
+            for item in st.session_state["historial_asociacion"]
+        }
+        id_seleccionado = st.selectbox(
+            "Seleccionar análisis guardado:",
+            options=list(opciones_hist.keys()),
+            format_func=lambda idx: opciones_hist[idx]
+        )
+
+        col_cargar, col_elim, col_borrar = st.columns([1, 1, 2])
+        with col_cargar:
+            if st.button("Cargar en vista", use_container_width=True):
+                elegido = next(
+                    (item for item in st.session_state["historial_asociacion"] if item["id"] == id_seleccionado),
+                    None
+                )
+                if elegido and "resultado_completo" in elegido:
+                    res_guardado = elegido["resultado_completo"]
+                    params_guardados = elegido.get("parametros", {})
+                    st.session_state["reglas_actual"] = {
+                        "resultado": res_guardado,
+                        "matriz_tx": None,
+                        "parametros": params_guardados,
+                        "timestamp": elegido["hora"]
+                    }
+                    st.session_state["reglas_asociacion"] = res_guardado["reglas"]
+                    st.session_state["config_asociacion"] = params_guardados
+                    st.rerun()
+        with col_elim:
+            if st.button("Eliminar seleccionado", use_container_width=True):
+                st.session_state["historial_asociacion"] = eliminar_analisis_por_id(
+                    st.session_state["historial_asociacion"],
+                    id_seleccionado
+                )
+                st.rerun()
+        with col_borrar:
+            if st.button("Borrar Historial de Asociación"):
+                st.session_state["historial_asociacion"] = []
+                st.rerun()
     else:
         st.info("Aún no has guardado ningún análisis de reglas en esta sesión.")
 

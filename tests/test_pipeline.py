@@ -1,7 +1,8 @@
 """
-Script de verificación técnica para el pipeline completo de RF1, RF2 y RF3.
+Script de verificación técnica para el pipeline completo de RF1, RF2, RF3 y RF4.
 Comprueba que los datos de prueba se cargan, se limpian (incluyendo atípicos),
-y que el árbol de decisión se entrena, evalúa y visualiza sin excepciones.
+que el árbol de decisión se entrena, evalúa y visualiza sin excepciones,
+y que las reglas de asociación (Apriori y FP-Growth) se generan correctamente.
 """
 
 import sys
@@ -18,6 +19,10 @@ from analisis.arbol_decision import (
     entrenar_arbol,
     evaluar_modelo,
     exportar_arbol_a_reglas_texto
+)
+from analisis.asociacion import (
+    preparar_transacciones,
+    generar_reglas_asociacion
 )
 
 def run_tests():
@@ -74,6 +79,45 @@ def run_tests():
 
     reglas = exportar_arbol_a_reglas_texto(modelo, datos_prep["feature_names"])
     print(f"RF3 Reglas exportadas (primeras 3 líneas):\n" + "\n".join(reglas.splitlines()[:4]))
+
+    # 4. Test RF4: Reglas de Asociación (Apriori y FP-Growth)
+    cols_asoc = [
+        c for c in df_limpio.columns
+        if not pd.api.types.is_numeric_dtype(df_limpio[c])
+    ]
+    matriz_tx = preparar_transacciones(
+        df_limpio,
+        columnas_seleccionadas=cols_asoc,
+        incluir_numericas=False
+    )
+    assert not matriz_tx.empty and matriz_tx.shape[1] > 0, "La matriz transaccional no debe estar vacía"
+
+    res_apriori = generar_reglas_asociacion(
+        matriz_tx,
+        algoritmo="apriori",
+        min_support=0.2,
+        metrica="confidence",
+        min_threshold=0.5
+    )
+    res_fpgrowth = generar_reglas_asociacion(
+        matriz_tx,
+        algoritmo="fpgrowth",
+        min_support=0.2,
+        metrica="confidence",
+        min_threshold=0.5
+    )
+
+    assert res_apriori["total_itemsets"] > 0, "Apriori debe encontrar itemsets frecuentes"
+    assert res_fpgrowth["total_itemsets"] > 0, "FP-Growth debe encontrar itemsets frecuentes"
+    assert res_apriori["total_itemsets"] == res_fpgrowth["total_itemsets"], (
+        "Apriori y FP-Growth deben encontrar la misma cantidad de itemsets"
+    )
+    assert res_apriori["total_reglas"] >= 0 and res_fpgrowth["total_reglas"] >= 0
+
+    print(
+        f"RF4 superado: Apriori ({res_apriori['total_itemsets']} itemsets, {res_apriori['total_reglas']} reglas) "
+        f"y FP-Growth ({res_fpgrowth['total_itemsets']} itemsets, {res_fpgrowth['total_reglas']} reglas)."
+    )
 
     print("\n¡TODOS LOS TESTS UNITARIOS PASARON SATISFACTORIAMENTE!")
 

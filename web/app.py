@@ -74,9 +74,12 @@ def main() -> None:
             st.warning("**3. Árbol de Decisión (RF3)**\n\nSin modelos entrenados.")
 
     with col4:
-        if st.session_state["reglas_asociacion"] is not None:
-            n_reglas = len(st.session_state["reglas_asociacion"])
+        reglas_rf4 = st.session_state["reglas_asociacion"]
+        if reglas_rf4 is not None and not reglas_rf4.empty:
+            n_reglas = len(reglas_rf4)
             st.success(f"**4. Asociación (RF4)**\n\n{n_reglas} regla(s) generada(s).")
+        elif reglas_rf4 is not None:
+            st.warning("**4. Asociación (RF4)**\n\n0 reglas encontradas con los parámetros actuales.")
         else:
             st.warning("**4. Reglas de Asociación (RF4)**\n\nSin reglas calculadas.")
 
