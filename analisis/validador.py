@@ -1,13 +1,17 @@
+"""Validación y carga de archivos CSV para el flujo de ingreso de datos (RF1)."""
+
 import csv
 import io
 from typing import Dict, Any, Tuple, Optional
 import pandas as pd
 
+# Límites y opciones usados por los validadores y detectores del archivo.
 TAMANO_MAXIMO_MB: float = 50.0
 ENCODINGS_SOPORTADOS: list = ["utf-8", "utf-8-sig", "latin-1", "cp1252"]
 SEPARADORES_CANDIDATOS: list = [",", ";", "\t", "|"]
 
 def validar_extension(nombre_archivo: str) -> Tuple[bool, str]:
+    """Comprueba que se haya proporcionado un nombre con extensión CSV."""
     if not nombre_archivo:
         return False, "No se proporcionó un nombre de archivo válido."
     if not nombre_archivo.lower().endswith(".csv"):
@@ -15,6 +19,7 @@ def validar_extension(nombre_archivo: str) -> Tuple[bool, str]:
     return True, "Extensión .csv válida."
 
 def validar_tamano(tamano_bytes: int, max_mb: float = TAMANO_MAXIMO_MB) -> Tuple[bool, float, str]:
+    """Rechaza archivos vacíos o mayores al límite y devuelve su tamaño en MB."""
     if tamano_bytes <= 0:
         return False, 0.0, "El archivo está completamente vacío (0 bytes)."
     
@@ -25,6 +30,7 @@ def validar_tamano(tamano_bytes: int, max_mb: float = TAMANO_MAXIMO_MB) -> Tuple
     return True, tamano_mb, f"Tamaño válido ({tamano_mb:.4f} MB)."
 
 def detectar_encoding(contenido_bytes: bytes) -> Tuple[Optional[str], Optional[str]]:
+    """Prueba las codificaciones admitidas sobre una muestra inicial del archivo."""
     muestra_bytes = contenido_bytes[:65536]
     for encoding in ENCODINGS_SOPORTADOS:
         try:
@@ -35,6 +41,7 @@ def detectar_encoding(contenido_bytes: bytes) -> Tuple[Optional[str], Optional[s
     return None, None
 
 def detectar_separador(muestra_texto: str) -> str:
+    """Detecta el delimitador con Sniffer y usa el encabezado como alternativa."""
     lineas = [linea for linea in muestra_texto.splitlines() if linea.strip()]
     if not lineas:
         return ","
@@ -53,7 +60,8 @@ def validar_y_cargar_csv(
     archivo_subido: Any,
     max_mb: float = TAMANO_MAXIMO_MB
 ) -> Dict[str, Any]:
-    
+    """Valida un archivo subido y devuelve datos, metadatos y errores encontrados."""
+    # Mantiene una estructura de respuesta estable tanto para éxito como para error.
     resultado: Dict[str, Any] = {
         "valido": False,
         "mensaje": "",
@@ -72,18 +80,21 @@ def validar_y_cargar_csv(
     }
 
     nombre_archivo = resultado["metadata"]["nombre_archivo"]
+    # Comprueba primero la extensión para rechazar formatos no admitidos.
     ext_ok, msg_ext = validar_extension(nombre_archivo)
     if not ext_ok:
         resultado["errores"].append(msg_ext)
         resultado["mensaje"] = msg_ext
         return resultado
 
+    # Lee el contenido sin depender de un único tipo de objeto de carga.
     try:
         contenido_bytes = archivo_subido.getvalue()
     except AttributeError:
         archivo_subido.seek(0)
         contenido_bytes = archivo_subido.read()
 
+    # Verifica el tamaño antes de analizar el contenido.
     tam_ok, tamano_mb, msg_tam = validar_tamano(len(contenido_bytes), max_mb)
     resultado["metadata"]["tamano_mb"] = tamano_mb
     if not tam_ok:
@@ -91,6 +102,7 @@ def validar_y_cargar_csv(
         resultado["mensaje"] = msg_tam
         return resultado
 
+    # Detecta codificación y separador antes de pedirle a pandas que lea el CSV.
     encoding, muestra_texto = detectar_encoding(contenido_bytes)
     if not encoding or not muestra_texto:
         msg_enc = "No fue posible reconocer la codificación del archivo."
@@ -104,6 +116,7 @@ def validar_y_cargar_csv(
     resultado["metadata"]["separador"] = separador
     resultado["metadata"]["nombre_separador"] = nombres_sep.get(separador, f"Otro ({separador})")
 
+    # Carga el DataFrame y completa la respuesta con las dimensiones del dataset.
     try:
         buffer_bytes = io.BytesIO(contenido_bytes)
         df = pd.read_csv(buffer_bytes, encoding=encoding, sep=separador)

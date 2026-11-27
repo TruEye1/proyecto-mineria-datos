@@ -34,6 +34,7 @@ def detectar_y_tratar_atipicos_iqr(
     df_procesado = df.copy()
     conteo_atipicos: Dict[str, int] = {}
 
+    # Limita el análisis a columnas numéricas; las categóricas no admiten IQR.
     columnas_numericas = df_procesado.select_dtypes(include=[np.number]).columns
 
     for col in columnas_numericas:
@@ -41,6 +42,7 @@ def detectar_y_tratar_atipicos_iqr(
         if df_procesado[col].nunique() <= 2:
             continue
 
+        # Calcula los cuartiles y límites que definen los valores atípicos.
         q1 = df_procesado[col].quantile(0.25)
         q3 = df_procesado[col].quantile(0.75)
         iqr = q3 - q1
@@ -69,6 +71,7 @@ def limpiar_datos(df_original: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, An
         - pd.DataFrame: Dataset limpio listo para modelado (RF3/RF4).
         - dict: Resumen cuantitativo de cada modificación efectuada.
     """
+    # Trabaja sobre una copia para no modificar el DataFrame entregado por quien llama.
     df = df_original.copy()
 
     resumen: Dict[str, Any] = {
@@ -96,6 +99,7 @@ def limpiar_datos(df_original: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, An
 
     # 3. Corrección automática de tipos de datos mal formateados
     # Detecta cadenas de texto que en realidad son números con coma decimal o espacios
+    # Convierte texto numérico a número cuando toda la columna admite la conversión.
     for col in df.columns:
         if df[col].dtype == "object":
             df[col] = df[col].replace(r"^\s*$", np.nan, regex=True)
@@ -107,6 +111,7 @@ def limpiar_datos(df_original: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, An
                 pass
 
     # 4. Tratamiento de valores nulos mediante imputación estadística
+    # Imputa los nulos con mediana o moda según el tipo de cada columna.
     for col in df.columns:
         nulos_col = int(df[col].isnull().sum())
         if nulos_col > 0:
