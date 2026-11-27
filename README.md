@@ -45,6 +45,8 @@ Está organizada en dos capas:
 
 - Resumen consolidado del dataset y los resultados registrados.
 - Historial y comparación gráfica de modelos y ejecuciones de asociación.
+- Conclusiones automáticas generadas a partir de datos, limpieza, modelos y reglas.
+- Vista previa y descarga del informe ejecutivo autocontenido en `.html`.
 - Vista previa y descarga de un reporte de sesión en `.txt`.
 - Descarga de las reglas activas en formato `.csv`.
 
@@ -103,7 +105,7 @@ Se incluye un dataset de ejemplo en `tests/dataset_prueba.csv`.
 
 ## Verificación
 
-El script de pruebas comprueba el pipeline completo: carga CSV, limpieza, entrenamiento y evaluación del árbol, Apriori y FP-Growth.
+El script de pruebas comprueba el pipeline completo: carga CSV, limpieza, entrenamiento y evaluación del árbol, Apriori, FP-Growth y generación de informes (`.html`, `.txt` y `.csv`).
 
 ```powershell
 python tests/test_pipeline.py

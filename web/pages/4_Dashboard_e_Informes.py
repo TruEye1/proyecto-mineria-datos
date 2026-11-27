@@ -1,13 +1,15 @@
 """
 Módulo: 4_Dashboard_e_Informes.py
 Capa: Presentación (web/pages/)
-Descripción: Vista consolidada de resultados de la sesión y descarga de reportes.
+Descripción: Vista consolidada de resultados de la sesión, conclusiones automáticas
+y exportación de informes en HTML, texto plano y CSV (RF5/RF6).
 """
 
 import sys
 from pathlib import Path
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.express as px
 
 # Resolver la raíz del proyecto para importar módulos internos de forma consistente.
@@ -18,17 +20,38 @@ if str(RUTA_RAIZ) not in sys.path:
 
 from analisis.generador_informe import (
     construir_resumen_sesion,
+    generar_conclusiones_automaticas,
+    generar_informe_html,
     generar_informe_texto,
     obtener_reglas_exportables,
 )
 
 
+def inicializar_estado() -> None:
+    """Asegura las claves de sesión necesarias si el usuario abre esta página directamente."""
+    valores_defecto = {
+        "df_original": None,
+        "df_limpio": None,
+        "metadata_archivo": None,
+        "resumen_limpieza": None,
+        "modelos_arbol": [],
+        "historial_asociacion": [],
+        "reglas_actual": None,
+        "reglas_asociacion": None,
+    }
+    for clave, valor in valores_defecto.items():
+        if clave not in st.session_state:
+            st.session_state[clave] = valor
+
+
 def main():
+    """Renderiza el resumen de sesión, gráficos comparativos, conclusiones y descargas."""
     st.set_page_config(
         page_title="Dashboard e Informes | Minería de Datos",
         page_icon="📊",
         layout="wide",
     )
+    inicializar_estado()
 
     st.title("Dashboard e Informes de Sesión")
     st.markdown(
@@ -107,15 +130,37 @@ def main():
 
     st.divider()
 
-    # Vista previa y descarga de reporte consolidado y reglas vigentes.
-    st.subheader("Exportación de Resultados")
+    # Conclusiones automáticas generadas a partir de datos, limpieza, modelos y reglas.
+    st.subheader("Conclusiones de la Sesión")
+    conclusiones = generar_conclusiones_automaticas(st.session_state)
+    for hallazgo in conclusiones:
+        st.write(f"- {hallazgo}")
+
+    st.divider()
+
+    # Vista previa y descarga del informe HTML obligatorio junto con texto plano y CSV.
+    st.subheader("Exportación de Resultados (RF5)")
+    html_reporte = generar_informe_html(st.session_state)
     texto_reporte = generar_informe_texto(st.session_state)
     reglas_csv_df = obtener_reglas_exportables(st.session_state)
 
-    st.text_area("Vista previa del reporte de sesión", value=texto_reporte, height=220)
+    with st.expander("Vista previa del Informe HTML", expanded=False):
+        components.html(html_reporte, height=520, scrolling=True)
 
-    d1, d2 = st.columns(2)
+    with st.expander("Vista previa del Reporte en Texto (.txt)", expanded=False):
+        st.text_area("Contenido del reporte en texto", value=texto_reporte, height=220)
+
+    d1, d2, d3 = st.columns(3)
     with d1:
+        st.download_button(
+            label="Descargar Informe Ejecutivo (.html)",
+            data=html_reporte.encode("utf-8"),
+            file_name="informe_mineria_datos.html",
+            mime="text/html",
+            type="primary",
+            use_container_width=True,
+        )
+    with d2:
         st.download_button(
             label="Descargar Reporte de Sesión (.txt)",
             data=texto_reporte.encode("utf-8"),
@@ -123,7 +168,7 @@ def main():
             mime="text/plain",
             use_container_width=True,
         )
-    with d2:
+    with d3:
         if not reglas_csv_df.empty:
             st.download_button(
                 label="Descargar Reglas Actuales (.csv)",

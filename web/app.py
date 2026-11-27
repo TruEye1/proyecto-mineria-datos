@@ -15,12 +15,15 @@ if str(RUTA_RAIZ) not in sys.path:
 
 
 def inicializar_estado_sesion() -> None:
+    """Inicializa todas las claves compartidas entre páginas sin sobrescribir datos vigentes."""
     estados_por_defecto = {
         "df_original": None,
         "df_limpio": None,
         "metadata_archivo": None,
         "resumen_limpieza": None,
         "modelos_arbol": [],
+        "historial_asociacion": [],
+        "reglas_actual": None,
         "reglas_asociacion": None,
         "config_asociacion": None
     }
@@ -30,6 +33,7 @@ def inicializar_estado_sesion() -> None:
 
 
 def main() -> None:
+    """Renderiza el tablero de estado inicial del pipeline y la guía de navegación."""
     st.set_page_config(
         page_title="Plataforma de Minería de Datos",
         page_icon="",
@@ -37,6 +41,7 @@ def main() -> None:
         initial_sidebar_state="expanded"
     )
 
+    # Garantiza que el estado exista incluso al entrar por primera vez en la raíz.
     inicializar_estado_sesion()
 
     st.title("Plataforma Web de Minería de Datos")
