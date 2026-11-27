@@ -1,0 +1,26 @@
+Id Cliente,Edad,Ingresos Anuales,Puntuacion Crediticia,Nivel Educativo,Estado Civil,Aprobado
+1,25,35000.50,650,Universitario,Soltero,Si
+2,45,72000.00,720,Postgrado,Casado,Si
+3,19,18000.00,580,Secundaria,Soltero,No
+4,,45000.00,610,Universitario,Casado,Si
+5,52,95000.00,790,Postgrado,Casado,Si
+6,31,28000.00,540,Secundaria,Divorciado,No
+7,60,110000.00,810,Postgrado,Casado,Si
+8,22,22000.00,590,,Soltero,No
+9,38,54000.00,680,Universitario,Casado,Si
+10,29,31000.00,620,Secundaria,Soltero,No
+11,41,63000.00,700,Universitario,Divorciado,Si
+12,56,88000.00,750,Postgrado,Casado,Si
+13,24,19500.00,560,Secundaria,Soltero,No
+14,35,48000.00,640,Universitario,Casado,Si
+15,48,77000.00,730,Postgrado,Divorciado,Si
+16,21,15000.00,510,Secundaria,Soltero,No
+17,33,42000.00,630,Universitario,Casado,Si
+18,50,91000.00,770,Postgrado,Casado,Si
+19,27,29000.00,600,Secundaria,Soltero,No
+20,65,125000.00,820,Postgrado,Casado,Si
+1,25,35000.50,650,Universitario,Soltero,Si
+2,45,72000.00,720,Postgrado,Casado,Si
+23,150,50000.00,650,Universitario,Soltero,Si
+24,30,40000.00,1200,Universitario,Casado,Si
+25,40,,670,Universitario,Soltero,Si
